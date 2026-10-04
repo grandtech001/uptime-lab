@@ -36,10 +36,27 @@ app.get("/monitors", async (_req, res, next) => {
   } catch (err) { next(err) }
 })
 
+// Route params arrive as strings and go straight into an integer column. A
+// non-numeric id is a client mistake, so it must not look like a DB failure.
+function monitorId(req, res) {
+  const id = Number(req.params.id)
+  if (!Number.isInteger(id) || id < 1) {
+    res.status(400).json({ error: "id must be a positive integer" })
+    return null
+  }
+  return id
+}
+
 app.post("/monitors", async (req, res, next) => {
   const { name, url, interval_sec } = req.body || {}
   if (!name || !url) {
     return res.status(400).json({ error: "name and url are required" })
+  }
+  // The schema's CHECK (interval_sec >= 10) catches this too, but surfaces it
+  // as a constraint violation, which reads like a server fault. It isn't one.
+  if (interval_sec !== undefined && interval_sec !== null &&
+      (!Number.isInteger(interval_sec) || interval_sec < 10)) {
+    return res.status(400).json({ error: "interval_sec must be an integer of at least 10" })
   }
   try {
     const { rows } = await query(
@@ -58,8 +75,10 @@ app.post("/monitors", async (req, res, next) => {
 })
 
 app.delete("/monitors/:id", async (req, res, next) => {
+  const id = monitorId(req, res)
+  if (id === null) return
   try {
-    const { rowCount } = await query("DELETE FROM monitors WHERE id = $1", [req.params.id])
+    const { rowCount } = await query("DELETE FROM monitors WHERE id = $1", [id])
     if (rowCount === 0) return res.status(404).json({ error: "no such monitor" })
     res.status(204).end()
   } catch (err) { next(err) }
@@ -95,19 +114,36 @@ app.get("/status", async (_req, res, next) => {
 })
 
 app.get("/monitors/:id/checks", async (req, res, next) => {
+  const id = monitorId(req, res)
+  if (id === null) return
   const limit = Math.min(Number(req.query.limit) || 50, 500)
   try {
     const { rows } = await query(
       `SELECT id, checked_at, ok, status_code, latency_ms, error
        FROM checks WHERE monitor_id = $1
        ORDER BY checked_at DESC LIMIT $2`,
-      [req.params.id, limit]
+      [id, limit]
     )
     res.json(rows)
   } catch (err) { next(err) }
 })
 
+// Postgres codes that mean the client sent something invalid. Without this a
+// typo in a request body comes back as a 5xx, and in stage 6 a 5xx rate alarm
+// pages you for someone else's typo.
+const CLIENT_ERRORS = {
+  "22P02": "invalid value in request",      // invalid_text_representation
+  "23502": "a required field was null",     // not_null_violation
+  "23503": "referenced row does not exist", // foreign_key_violation
+  "23514": "value outside the allowed range", // check_violation
+}
+
 app.use((err, _req, res, _next) => {
+  const clientError = CLIENT_ERRORS[err.code]
+  if (clientError) {
+    console.warn("bad request:", err.message)
+    return res.status(400).json({ error: clientError })
+  }
   console.error("unhandled:", err.message)
   res.status(500).json({ error: "internal error" })
 })

@@ -1,0 +1,45 @@
+# Dependencies — reinstalled inside the image from the lockfile.
+# The **/ prefix matters: with a root context, a bare "node_modules"
+# would only match ./node_modules, which doesn't exist here.
+**/node_modules
+
+# Version control. Keeps every commit from invalidating the COPY layer.
+.git
+.gitignore
+
+# Secrets. .env exists in this repo right now and would otherwise be
+# baked into a layer permanently — deleting it in a later RUN does not
+# remove it from the image.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.npmrc
+
+# Docker and CI files — not needed inside the image.
+**/Dockerfile*
+.dockerignore
+docker-compose*.yml
+.github
+
+# Docs
+README.md
+
+# Later stages: tfstate holds credentials in plaintext, so exclude it
+# before stage 3 rather than after.
+terraform/
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+k8s/
+charts/
+kubeconfig
+*.kubeconfig
+
+# Noise
+**/*.log
+**/.DS_Store
+**/coverage

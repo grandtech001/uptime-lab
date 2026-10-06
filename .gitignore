@@ -18,3 +18,4 @@ terraform.rc
 # Kubernetes (stage 5)
 kubeconfig
 *.kubeconfig
+

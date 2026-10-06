@@ -1,0 +1,83 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - CHECKER_API_URL=http://checker-api:3001
+      - CORS_ORIGIN=*
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+  checker-api:
+    build:
+      context: .
+      dockerfile: services/checker-api/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=postgres://uptime:uptime@postgres:5432/uptime
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+  scheduler:
+    build:
+      context: .
+      dockerfile: services/scheduler/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - DATABASE_URL=postgres://uptime:uptime@postgres:5432/uptime
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3002/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+  migrate:
+    build:
+      context: .
+      dockerfile: services/checker-api/Dockerfile
+    command: npm run migrate
+    environment:
+      - DATABASE_URL=postgres://uptime:uptime@postgres:5432/uptime
+      - NODE_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=uptime 
+      - POSTGRES_PASSWORD=uptime
+      - POSTGRES_DB=uptime
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uptime"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+volumes:
+  pgdata:

@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install lint tooling
+        run: npm ci
+
+      - name: Lint JavaScript
+        run: npm run lint
+
+      # failure-threshold: warning so informational style notes don't block a
+      # merge. Warnings and errors still fail the job.
+      - name: Lint Dockerfiles
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          recursive: true
+          failure-threshold: warning
+
+  build-and-smoke:
+    name: Build and smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Validates the compose file itself before anything slow runs.
+      - name: Validate compose file
+        run: docker compose config --quiet
+
+      # Builds all four images. This also proves each service's lockfile
+      # installs cleanly, since every Dockerfile runs `npm ci`.
+      - name: Build images
+        run: docker compose build
+
+      - name: Start the stack
+        run: docker compose up -d
+
+      # Polls rather than using `--wait`: the compose healthchecks are on a
+      # 90s interval, which would make --wait far slower than necessary.
+      - name: Wait for gateway
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/health > /dev/null; then
+              echo "gateway up after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "gateway never became healthy"; exit 1
+
+      - name: Check checker-api is ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3001/ready > /dev/null; then
+              echo "checker-api ready after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "checker-api never became ready"; exit 1
+
+      # The gateway's /ready proxies through to checker-api, so this asserts
+      # the two are actually wired together and not just individually alive.
+      - name: Check gateway is ready
+        run: curl -fsS http://localhost:3000/ready | tee /dev/stderr | grep -q '"ready"'
+
+      # The scheduler completes a full probe sweep before it starts listening,
+      # and that sweep reaches out to example.com and httpbin.org. Given a long
+      # window so a slow external host doesn't fail the build.
+      - name: Check scheduler is ready
+        run: |
+          for i in $(seq 1 120); do
+            if curl -fsS http://localhost:3002/ready > /dev/null; then
+              echo "scheduler ready after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "scheduler never became ready"; exit 1
+
+      # Proves migrate ran: these four rows come from db/seed.sql. Deliberately
+      # not asserting on /status, whose uptime figures depend on external hosts.
+      - name: Check seeded monitors are served through the gateway
+        run: |
+          count=$(curl -fsS http://localhost:3000/api/monitors | grep -o '"id":' | wc -l | tr -d ' ')
+          echo "gateway returned $count monitors"
+          test "$count" -eq 4
+
+      - name: Check metrics endpoints are exposed
+        run: |
+          curl -fsS http://localhost:3001/metrics | grep -q 'http_request_duration_seconds'
+          curl -fsS http://localhost:3002/metrics | grep -q 'sweep_duration_seconds'
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

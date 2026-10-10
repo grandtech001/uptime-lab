@@ -21,7 +21,9 @@ locals {
   allocated_storage    = 20
 }
 
-variable "vpc_id" {}
+variable "vpc_id" {
+  type = string
+}
 variable "sg_name" {
   description = "security group name"
   type        = string

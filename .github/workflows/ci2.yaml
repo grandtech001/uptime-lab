@@ -55,6 +55,9 @@ jobs:
                 role-to-assume: arn:aws:iam::195275640975:role/uptime-lab-ci-plan
                 role-session-name: gha-terraform-plan
                 aws-region: ${{ env.AWS_REGION }}
+                
+            - name: AWS profile
+              run: export AWS_PROFILE=terraform
     
             - name: Terraform init
               run: terraform init

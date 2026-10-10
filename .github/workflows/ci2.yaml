@@ -1,0 +1,63 @@
+name: Stage 3 - deploying ecr, infra and rds in cloud
+
+on: 
+    pull_request:
+        branches: [main]
+permissions:
+    id-token: write
+    contents: read
+env:   
+    AWS_REGION: "eu-west-1"
+
+jobs:
+    plan:
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: infra
+
+        steps:
+            - name: Checking repository
+              uses: actions/checkout@v7   
+
+            - name: Setup Terraform
+              uses: hashicorp/setup-terraform@v4
+    
+            - name: Terraform format check
+              run: terraform fmt -check -recursive
+
+            - name: Set up tflint
+              uses: terraform-linters/setup-tflint@v6
+
+            - name: Initiate Tflint
+              run: tflint --init 
+
+            - name: Run tflint
+              run: tflint --recursive
+
+            - name: Set up proofctl
+              uses: actions/setup-python@v7
+              with:
+                python-version: "3.12"
+              
+            - name: Proofctl check
+              run: 
+                | 
+                pip install proofctl==0.6.1
+                proofctl check . --no-pypi --fail-on ERROR --new-only: 
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v6
+              with:
+                role-to-assume: arn:aws:iam::195275640975:role/uptime-lab-ci-plan
+                role-session-name: gha-terraform-plan
+                aws-region: ${{ env.AWS_REGION }}
+    
+            - name: Terraform init
+              run: terraform init
+    
+            - name: Terraform validate
+              run: terraform validate
+                
+            - name: Terraform plan
+              run: terraform plan

@@ -1,5 +1,5 @@
 output "repository_name" {
-  value = { for k, v in module.ecr : k => v.repository_name }
+  value = module.ecr.repository_name
 }
 output "db_instance_endpoint" {
   value = module.rds.db_instance_endpoint

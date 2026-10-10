@@ -23,7 +23,7 @@ variable "cidr" {
 variable "azs" {
   description = "List of Availability Zones"
   type        = list(string)
-  default     = ["eu-west-2a", "eu-west-2b"]
+  default     = ["eu-west-1a", "eu-west-1b"]
 
 }
 

@@ -30,7 +30,7 @@ variable "sg_name" {
   default     = "uptime-rds-sg"
 }
 variable "allowed_cidr_block" {
-  type = map(string)
+  type = list(string)
 }
 variable "db_subnet_group_name" {
   type = string

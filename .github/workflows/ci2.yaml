@@ -3,11 +3,14 @@ name: Stage 3 - deploying ecr, infra and rds in cloud
 on: 
     pull_request:
         branches: [main]
+        paths:
+            - "infra/**"
+            - ".github/workflows/ci2.yaml"
 permissions:
     id-token: write
     contents: read
 env:   
-    AWS_REGION: "eu-west-1"
+    AWS_REGION: "eu-west-2"
 
 jobs:
     plan:

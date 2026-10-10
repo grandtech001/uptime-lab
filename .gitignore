@@ -19,10 +19,7 @@ terraform.rc
 kubeconfig
 *.kubeconfig
 
-<<<<<<< Updated upstream
-=======
 # Personal learning notes (kept local)
 learnings/
 bootstrap/
 
->>>>>>> Stashed changes

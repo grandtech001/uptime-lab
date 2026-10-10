@@ -47,17 +47,14 @@ jobs:
               run: 
                 | 
                 pip install proofctl==0.6.1
-                proofctl check . --no-pypi --fail-on ERROR --new-only: 
+                proofctl check . --no-pypi --fail-on ERROR --new-only 
 
             - name: Configure AWS credentials
               uses: aws-actions/configure-aws-credentials@v6
               with:
-                role-to-assume: arn:aws:iam::195275640975:role/uptime-lab-ci-plan
+                role-to-assume: arn:aws:iam::630702529373:role/uptime-lab-ci-plan
                 role-session-name: gha-terraform-plan
                 aws-region: ${{ env.AWS_REGION }}
-                
-            - name: AWS profile
-              run: export AWS_PROFILE=terraform
     
             - name: Terraform init
               run: terraform init

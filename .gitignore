@@ -19,3 +19,7 @@ terraform.rc
 kubeconfig
 *.kubeconfig
 
+# Personal learning notes (kept local)
+learnings/
+bootstrap/
+
